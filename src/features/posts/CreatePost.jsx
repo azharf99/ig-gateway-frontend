@@ -16,9 +16,11 @@ import {
   MessageCircle,
   Send,
   Bookmark,
-  Plus
+  Plus,
+  Edit2
 } from 'lucide-react';
 import Instagram from '../../components/icons/Instagram';
+import MediaEditor from '../../components/MediaEditor/MediaEditor';
 
 const CreatePost = () => {
   const navigate = useNavigate();
@@ -31,7 +33,18 @@ const CreatePost = () => {
   const [scheduledAt, setScheduledAt] = useState('');
   const [mediaFiles, setMediaFiles] = useState([]); // { file, previewUrl, type }
   const [validationError, setValidationError] = useState('');
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editorIndex, setEditorIndex] = useState(-1);
   const fileInputRef = useRef(null);
+
+  const handleOpenEditor = (index) => {
+    setEditorIndex(index);
+    setIsEditorOpen(true);
+  };
+
+  const handleSaveEdits = (updatedMedia) => {
+    setMediaFiles(prev => prev.map((item, idx) => idx === editorIndex ? updatedMedia : item));
+  };
 
   // Clear previews on unmount
   useEffect(() => {
@@ -137,7 +150,18 @@ const CreatePost = () => {
 
     mediaFiles.forEach((item) => {
       formData.append('media', item.file);
+      if (item.audioFile) {
+        formData.append('audio_file', item.audioFile);
+      }
+      if (item.logoFile) {
+        formData.append('logo_file', item.logoFile);
+      }
     });
+
+    const editMetadataList = mediaFiles.map(item => item.editMetadata || null);
+    if (editMetadataList.some(meta => meta !== null)) {
+      formData.append('edit_metadata', JSON.stringify(editMetadataList));
+    }
 
     const success = await createPost(formData);
     if (success) {
@@ -255,6 +279,15 @@ const CreatePost = () => {
                         className="absolute top-1.5 right-1.5 bg-black/60 hover:bg-red-600 text-white rounded-full p-1 transition duration-200 cursor-pointer"
                       >
                         <X size={12} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditor(index)}
+                        className="absolute bottom-1.5 left-1.5 bg-black/60 hover:bg-instagram-pink text-white rounded-full p-1.5 transition duration-200 cursor-pointer"
+                        title="Edit Media"
+                      >
+                        <Edit2 size={11} />
                       </button>
                     </div>
                   ))}
@@ -378,7 +411,44 @@ const CreatePost = () => {
               <div className="aspect-square bg-gray-950 flex items-center justify-center overflow-hidden relative">
                 {mediaFiles.length > 0 ? (
                   mediaFiles[0].type === 'video' ? (
-                    <video src={mediaFiles[0].previewUrl} className="object-cover h-full w-full" autoPlay loop muted />
+                    <div className="w-full h-full relative flex items-center justify-center">
+                      <video src={mediaFiles[0].previewUrl} className="object-cover h-full w-full" autoPlay loop muted={mediaFiles[0].editMetadata?.mute_audio} />
+                      
+                      {/* Text Hook Overlay Preview */}
+                      {mediaFiles[0].editMetadata?.text && (
+                        <div className={`absolute left-2 right-2 text-center select-none ${
+                          mediaFiles[0].editMetadata.text_position === 'upper-third' ? 'top-1/4 -translate-y-1/2' :
+                          mediaFiles[0].editMetadata.text_position === 'center' ? 'top-1/2 -translate-y-1/2' :
+                          'bottom-1/4 translate-y-1/2'
+                        }`}>
+                          {mediaFiles[0].editMetadata.text_style === 'typewriter' ? (
+                            <span className="px-2 py-1 bg-black/80 font-mono text-[7px] text-white rounded border border-gray-800 shadow-md">
+                              {mediaFiles[0].editMetadata.text}
+                            </span>
+                          ) : mediaFiles[0].editMetadata.text_style === 'neon' ? (
+                            <span 
+                              className="font-bold text-[8px] tracking-wider text-[#ff00ff] drop-shadow-[0_0_5px_#ff00ff]"
+                              style={{ WebkitTextStroke: '0.3px white' }}
+                            >
+                              {mediaFiles[0].editMetadata.text}
+                            </span>
+                          ) : (
+                            <span className="font-extrabold text-[8px] tracking-wide text-white drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.9)]">
+                              {mediaFiles[0].editMetadata.text}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Brand Logo Overlay Preview */}
+                      {mediaFiles[0].logoFile && (
+                        <div className={`absolute left-1/2 -translate-x-1/2 px-1 py-0.5 bg-black/30 rounded backdrop-blur-sm ${
+                          mediaFiles[0].editMetadata?.logo_position === 'top-center' ? 'top-2' : 'bottom-2'
+                        }`}>
+                          <span className="text-[6px] text-white/70 font-semibold uppercase tracking-wider">Logo</span>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <img src={mediaFiles[0].previewUrl} alt="Preview" className="object-cover h-full w-full" />
                   )
@@ -425,6 +495,15 @@ const CreatePost = () => {
           </div>
         </div>
       </div>
+      
+      {isEditorOpen && (
+        <MediaEditor
+          isOpen={isEditorOpen}
+          media={mediaFiles[editorIndex]}
+          onClose={() => setIsEditorOpen(false)}
+          onSave={handleSaveEdits}
+        />
+      )}
     </div>
   );
 };
