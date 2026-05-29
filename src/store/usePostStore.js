@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import api from '../utils/api';
 
-const usePostStore = create((set, get) => ({
+const usePostStore = create((set) => ({
   posts: [],
   currentPost: null,
   loading: false,

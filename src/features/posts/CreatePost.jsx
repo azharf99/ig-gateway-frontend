@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import usePostStore from '../../store/usePostStore';
 import useAuthStore from '../../store/useAuthStore';
@@ -12,11 +12,11 @@ import {
   Calendar, 
   AlertCircle, 
   Loader, 
-  Check, 
   Heart,
   MessageCircle,
   Send,
-  Bookmark
+  Bookmark,
+  Plus
 } from 'lucide-react';
 import Instagram from '../../components/icons/Instagram';
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 import { Loader, CheckCircle, XCircle } from 'lucide-react';
@@ -7,14 +7,11 @@ const InstagramCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { linkInstagram, error } = useAuthStore();
-  const [status, setStatus] = useState('processing'); // 'processing', 'success', 'error'
+  const [status, setStatus] = useState(() => searchParams.get('code') ? 'processing' : 'error'); // 'processing', 'success', 'error'
 
   useEffect(() => {
     const code = searchParams.get('code');
-    if (!code) {
-      setStatus('error');
-      return;
-    }
+    if (!code) return;
 
     const performLinking = async () => {
       const success = await linkInstagram(code);
