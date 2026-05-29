@@ -36,6 +36,17 @@ const CreatePost = () => {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editorIndex, setEditorIndex] = useState(-1);
   const fileInputRef = useRef(null);
+  const mockupVideoRef = useRef(null);
+
+  useEffect(() => {
+    if (mockupVideoRef.current) {
+      if (isEditorOpen) {
+        mockupVideoRef.current.pause();
+      } else {
+        mockupVideoRef.current.play().catch(e => console.log('Playback error:', e));
+      }
+    }
+  }, [isEditorOpen]);
 
   const handleOpenEditor = (index) => {
     setEditorIndex(index);
@@ -46,12 +57,17 @@ const CreatePost = () => {
     setMediaFiles(prev => prev.map((item, idx) => idx === editorIndex ? updatedMedia : item));
   };
 
+  const mediaFilesRef = useRef(mediaFiles);
+  useEffect(() => {
+    mediaFilesRef.current = mediaFiles;
+  }, [mediaFiles]);
+
   // Clear previews on unmount
   useEffect(() => {
     return () => {
-      mediaFiles.forEach(item => URL.revokeObjectURL(item.previewUrl));
+      mediaFilesRef.current.forEach(item => URL.revokeObjectURL(item.previewUrl));
     };
-  }, [mediaFiles]);
+  }, []);
 
   // Handle post type change -> reset media if type changes
   const handlePostTypeChange = (type) => {
@@ -259,7 +275,7 @@ const CreatePost = () => {
               {mediaFiles.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                   {mediaFiles.map((item, index) => (
-                    <div key={index} className="aspect-square bg-gray-900 rounded-xl overflow-hidden relative border border-gray-800 flex items-center justify-center">
+                    <div key={item.previewUrl || index} className="aspect-square bg-gray-900 rounded-xl overflow-hidden relative border border-gray-800 flex items-center justify-center">
                       {item.type === 'video' ? (
                         <video src={item.previewUrl} className="object-cover h-full w-full" muted />
                       ) : (
@@ -412,7 +428,7 @@ const CreatePost = () => {
                 {mediaFiles.length > 0 ? (
                   mediaFiles[0].type === 'video' ? (
                     <div className="w-full h-full relative flex items-center justify-center">
-                      <video src={mediaFiles[0].previewUrl} className="object-cover h-full w-full" autoPlay loop muted={mediaFiles[0].editMetadata?.mute_audio} />
+                      <video ref={mockupVideoRef} src={mediaFiles[0].previewUrl} className="object-cover h-full w-full" autoPlay loop muted={mediaFiles[0].editMetadata?.mute_audio} />
                       
                       {/* Text Hook Overlay Preview */}
                       {mediaFiles[0].editMetadata?.text && (
@@ -462,9 +478,9 @@ const CreatePost = () => {
                 {/* Carousel dots overlay */}
                 {postType === 'carousel' && mediaFiles.length > 1 && (
                   <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-                    {mediaFiles.map((_, i) => (
+                    {mediaFiles.map((item, i) => (
                       <span 
-                        key={i} 
+                        key={item.previewUrl || i} 
                         className={`h-1.5 w-1.5 rounded-full ${i === 0 ? 'bg-blue-500' : 'bg-gray-500'}`} 
                       />
                     ))}
