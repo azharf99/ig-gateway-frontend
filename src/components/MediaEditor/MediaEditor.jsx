@@ -23,11 +23,16 @@ const MediaEditor = ({ isOpen, onClose, media, onSave }) => {
   const [logoFile, setLogoFile] = useState(() => media?.logoFile || null); // Custom logo file
   const [logoPreviewUrl, setLogoPreviewUrl] = useState(() => media?.logoFile ? URL.createObjectURL(media.logoFile) : '');
   const [logoPosition, setLogoPosition] = useState(() => media?.editMetadata?.logo_position || 'top-center'); // 'top-center', 'bottom-center'
+  const [logoScale, setLogoScale] = useState(() => media?.editMetadata?.logo_scale || 50); // 10% - 100%
+  const [subtitleFile, setSubtitleFile] = useState(() => media?.subtitleFile || null);
+  const [subtitlePreviewUrl, setSubtitlePreviewUrl] = useState(() => media?.subtitleFile ? URL.createObjectURL(media.subtitleFile) : '');
+  const [trackUrl, setTrackUrl] = useState('');
 
   // Canvas ref for image preview & processing
   const canvasRef = useRef(null);
   const audioInputRef = useRef(null);
   const logoInputRef = useRef(null);
+  const subtitleInputRef = useRef(null);
 
   const isVideo = media?.type === 'video';
 
@@ -125,13 +130,53 @@ const MediaEditor = ({ isOpen, onClose, media, onSave }) => {
     };
   }, [brightness, contrast, saturation, hue, text, textStyle, textPosition, media.previewUrl, isVideo]);
 
+  // Convert SRT subtitles to WebVTT format for browser live track rendering
+  useEffect(() => {
+    let active = true;
+    if (!subtitleFile) {
+      setTimeout(() => {
+        if (active) setTrackUrl('');
+      }, 0);
+      return;
+    }
+
+    if (subtitleFile.name.endsWith('.vtt')) {
+      const url = URL.createObjectURL(subtitleFile);
+      setTimeout(() => {
+        if (active) setTrackUrl(url);
+      }, 0);
+      return () => {
+        active = false;
+        URL.revokeObjectURL(url);
+      };
+    }
+
+    // Convert SRT to WebVTT
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (!active) return;
+      const srtText = e.target.result;
+      // Convert comma timestamps to dot format (e.g. 00:00:01,234 -> 00:00:01.234)
+      const vttText = "WEBVTT\n\n" + srtText.replace(/(\d\d:\d\d:\d\d),(\d\d\d)/g, '$1.$2');
+      const blob = new Blob([vttText], { type: 'text/vtt' });
+      const url = URL.createObjectURL(blob);
+      setTrackUrl(url);
+    };
+    reader.readAsText(subtitleFile);
+    return () => {
+      active = false;
+    };
+  }, [subtitleFile]);
+
   // Clean up previews on unmount
   useEffect(() => {
     return () => {
       if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
       if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl);
+      if (subtitlePreviewUrl) URL.revokeObjectURL(subtitlePreviewUrl);
+      if (trackUrl) URL.revokeObjectURL(trackUrl);
     };
-  }, [audioPreviewUrl, logoPreviewUrl]);
+  }, [audioPreviewUrl, logoPreviewUrl, subtitlePreviewUrl, trackUrl]);
 
   // Audio Upload Handle
   const handleAudioChange = (e) => {
@@ -151,6 +196,15 @@ const MediaEditor = ({ isOpen, onClose, media, onSave }) => {
     setLogoPreviewUrl(URL.createObjectURL(file));
   };
 
+  // Subtitle Upload Handle
+  const handleSubtitleChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (subtitlePreviewUrl) URL.revokeObjectURL(subtitlePreviewUrl);
+    setSubtitleFile(file);
+    setSubtitlePreviewUrl(URL.createObjectURL(file));
+  };
+
   const handleSave = () => {
     if (isVideo) {
       // Save Video metadata and tracks
@@ -159,16 +213,19 @@ const MediaEditor = ({ isOpen, onClose, media, onSave }) => {
         text_style: textStyle,
         text_position: textPosition,
         logo_position: logoPosition,
+        logo_scale: Number(logoScale),
         mute_audio: muteAudio,
         has_audio: !!audioFile,
-        has_logo: !!logoFile
+        has_logo: !!logoFile,
+        has_subtitles: !!subtitleFile
       };
 
       onSave({
         ...media,
         editMetadata,
         audioFile,
-        logoFile
+        logoFile,
+        subtitleFile
       });
     } else {
       // Save Photo Canvas Blob
@@ -227,17 +284,30 @@ const MediaEditor = ({ isOpen, onClose, media, onSave }) => {
                   autoPlay 
                   loop 
                   muted={muteAudio} 
-                />
+                >
+                  {trackUrl && (
+                    <track 
+                      src={trackUrl} 
+                      kind="subtitles" 
+                      srcLang="en" 
+                      label="English" 
+                      default 
+                    />
+                  )}
+                </video>
 
                 {/* Simulated Logo Overlay */}
                 {logoPreviewUrl && (
-                  <div className={`absolute left-1/2 -translate-x-1/2 p-1.5 bg-black/30 rounded backdrop-blur-sm ${
-                    logoPosition === 'top-center' ? 'top-4' : 'bottom-4'
-                  }`}>
+                  <div 
+                    className={`absolute left-1/2 -translate-x-1/2 p-1 bg-black/30 rounded backdrop-blur-sm ${
+                      logoPosition === 'top-center' ? 'top-4' : 'bottom-4'
+                    }`}
+                    style={{ width: `${logoScale}%`, maxWidth: '90%' }}
+                  >
                     <img 
                       src={logoPreviewUrl} 
                       alt="Logo watermark" 
-                      className="h-8 max-w-[80px] object-contain opacity-80" 
+                      className="w-full h-auto object-contain opacity-80" 
                     />
                   </div>
                 )}
@@ -493,6 +563,19 @@ const MediaEditor = ({ isOpen, onClose, media, onSave }) => {
                             <option value="bottom-center">Bottom Center</option>
                           </select>
                         </div>
+
+                        {/* Logo Scale (Slider) */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-[10px] text-gray-400 font-semibold uppercase">
+                            <span>Logo Size</span>
+                            <span className="text-white font-bold">{logoScale}%</span>
+                          </div>
+                          <input 
+                            type="range" min="10" max="100" value={logoScale} 
+                            onChange={(e) => setLogoScale(Number(e.target.value))}
+                            className="w-full accent-instagram-pink bg-gray-900 h-1.5 rounded-lg cursor-pointer"
+                          />
+                        </div>
                       </div>
                     ) : (
                       <button 
@@ -500,6 +583,41 @@ const MediaEditor = ({ isOpen, onClose, media, onSave }) => {
                         className="w-full flex items-center justify-center py-2.5 border border-dashed border-gray-800 hover:border-gray-700 bg-gray-900/10 hover:bg-gray-900/30 text-gray-400 hover:text-white rounded-xl text-xs gap-1.5 transition duration-200 cursor-pointer"
                       >
                         <Upload size={13} /> Upload Logo Image
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Subtitles Settings */}
+                <div className="space-y-3.5">
+                  <div className="flex items-center gap-1.5 border-b border-gray-900 pb-2">
+                    <Type size={16} className="text-instagram-pink" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">Subtitles (SRT / VTT)</h4>
+                  </div>
+
+                  <div className="space-y-2">
+                    <input 
+                      type="file" accept=".srt,.vtt" ref={subtitleInputRef} onChange={handleSubtitleChange} className="hidden"
+                    />
+                    {subtitleFile ? (
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-instagram-pink/5 border border-instagram-pink/20">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <Type size={13} className="text-instagram-pink shrink-0" />
+                          <span className="text-xs text-white truncate max-w-[160px]">{subtitleFile.name}</span>
+                        </div>
+                        <button 
+                          onClick={() => { setSubtitleFile(null); if(subtitlePreviewUrl) URL.revokeObjectURL(subtitlePreviewUrl); setSubtitlePreviewUrl(''); }}
+                          className="text-gray-400 hover:text-red-500 transition duration-150 cursor-pointer"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={() => subtitleInputRef.current.click()}
+                        className="w-full flex items-center justify-center py-2.5 border border-dashed border-gray-800 hover:border-gray-700 bg-gray-900/10 hover:bg-gray-900/30 text-gray-400 hover:text-white rounded-xl text-xs gap-1.5 transition duration-200 cursor-pointer"
+                      >
+                        <Upload size={13} /> Upload Subtitle File (.srt, .vtt)
                       </button>
                     )}
                   </div>

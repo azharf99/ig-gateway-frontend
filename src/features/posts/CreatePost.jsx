@@ -172,6 +172,9 @@ const CreatePost = () => {
       if (item.logoFile) {
         formData.append('logo_file', item.logoFile);
       }
+      if (item.subtitleFile) {
+        formData.append('subtitle_file', item.subtitleFile);
+      }
     });
 
     const editMetadataList = mediaFiles.map(item => item.editMetadata || null);
