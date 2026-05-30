@@ -168,12 +168,29 @@ const Dashboard = () => {
                 <div className="aspect-square w-full bg-gray-950 relative overflow-hidden flex items-center justify-center border-b border-gray-950">
                   {post.Media && post.Media.length > 0 ? (
                     post.Media[0].MediaType === 'video' ? (
-                      <video 
-                        src={post.Media[0].MediaURL} 
-                        className="object-cover h-full w-full"
-                        controls={false}
-                        muted
-                      />
+                      post.Media[0].ThumbnailURL ? (
+                        <div className="relative h-full w-full">
+                          <img 
+                            src={post.Media[0].ThumbnailURL} 
+                            alt="Media Preview" 
+                            className="object-cover h-full w-full"
+                            loading="lazy"
+                          />
+                          {/* Play button overlay */}
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-colors duration-300">
+                            <div className="p-3 bg-black/40 backdrop-blur-md rounded-full border border-white/10 text-white shadow-md transform group-hover:scale-105 transition-all duration-300">
+                              <Play size={18} fill="currentColor" className="translate-x-[1px]" />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <video 
+                          src={post.Media[0].MediaURL} 
+                          className="object-cover h-full w-full"
+                          controls={false}
+                          muted
+                        />
+                      )
                     ) : (
                       <img 
                         src={post.Media[0].MediaURL} 
